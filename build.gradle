@@ -1,5 +1,6 @@
 subprojects {
     group = 'com.github.bsideup.jabel'
+    version = "0.2.0-tony"
     repositories {
         jcenter()
     }
