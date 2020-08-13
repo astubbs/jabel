@@ -1,5 +1,6 @@
 package com.github.bsideup.jabel;
 
+import com.sun.tools.javac.code.Preview;
 import com.sun.tools.javac.code.Source;
 import com.sun.tools.javac.parser.JavaTokenizer;
 import com.sun.tools.javac.parser.JavacParser;
@@ -73,6 +74,7 @@ public class JabelJavacProcessor implements Processor {
         ByteBuddyAgent.install();
         ByteBuddy byteBuddy = new ByteBuddy();
 
+        log.info("Disabling source level check");
         /**
          * Inject our code into the JDK version checks
          *
@@ -90,6 +92,15 @@ public class JabelJavacProcessor implements Processor {
                     .load(clazz.getClassLoader(), ClassReloadingStrategy.fromInstalledAgent());
         }
 
+        log.info("Disabling preview feature flag checks");
+        // force javac to think no features are previews
+        Class<Preview> previewClass = Preview.class;
+        byteBuddy.redefine(previewClass)
+                .visit(Advice.to(PreviewFeatureCheckOverride.class).on(named("isPreview")))
+                .make()
+                .load(previewClass.getClassLoader(), ClassReloadingStrategy.fromInstalledAgent());
+
+        log.info("Disabling feature min level checks");
         /**
          * For all the features in {@link #ENABLED_FEATURES}, override the min JDK level, reducing it to 8
          *
@@ -111,6 +122,20 @@ public class JabelJavacProcessor implements Processor {
         }
         log.info("Jabel ByteBuddy initialisation complete");
     }
+
+    static public class PreviewFeatureCheckOverride {
+
+        /**
+         * On {@link Preview#isPreview} exit, override the return value to always be false.
+         */
+        @Advice.OnMethodExit
+        static public boolean isPreview(Source.Feature feature) {
+            log.debug("Feature being set to NOT preview: " + feature);
+            return false;
+        }
+    }
+
+
 
     @Override
     public SourceVersion getSupportedSourceVersion() {
